@@ -5,7 +5,7 @@
 //  Created by 唐健恆 on 2021/3/23.
 //  Copyright © 2021 Alvin. All rights reserved.
 //
-
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <fstream>
 #include <sstream>
