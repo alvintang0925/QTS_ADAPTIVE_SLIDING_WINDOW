@@ -31,11 +31,11 @@ using namespace filesystem;
 #define DELTA 0.0004
 #define QTSTYPE 2 //QTS 0, GQTS 1, GNQTS 2
 #define TRENDLINETYPE 0 //linear 0, quadratic 1
-#define MODE 1 //extended 0, moved 1
+#define MODE 0 //extended 0, moved 1
 #define STARTDATE "20090930"
 #define TRAINRAGNE 65
 
-string file_dir = "0329_1500_1";
+string file_dir = "0329_2100_2";
 
 bool readData(string filename, vector<vector<string>> &data_vector, int &size, int &day_number) {
     cout << filename << endl;
@@ -456,7 +456,7 @@ void outputFile(Portfolio& portfolio, string file_name, string **data, int start
         for (int k = 0; k < portfolio.stock_number; k++) {
             outfile << (portfolio.constituent_stocks[k].price_list[j + 1] * portfolio.investment_number[k]) + portfolio.remain_fund[k] << ",";
         }
-        outfile << 2 * portfolio.a * (j+1) + portfolio.b << ",";
+//        outfile << 2 * portfolio.a * (j+1) + portfolio.b << ",";
         outfile << portfolio.total_money[j] << endl;
     }
     outfile << endl;
@@ -479,6 +479,19 @@ bool isVerifyFinish(Portfolio* portfolio){
     }else{
         return false;
     }
+
+}
+
+bool isVerifyFinish(Portfolio* portfolio, double limit_funds){
+    double upperBound = limit_funds * 1.1;
+    double lowerBound = limit_funds * 0.9;
+    double myFunds =portfolio[0].total_money[portfolio[0].day_number - 1];
+    if( myFunds > upperBound || myFunds < lowerBound){
+        return true;
+    }else{
+        return false;
+    }
+
 }
 
 int main(int argc, const char * argv[]) {
@@ -545,6 +558,7 @@ int main(int argc, const char * argv[]) {
         int test_end_index;
         string test_start_date = data[test_start_index][0];
         string test_end_date;
+        double limit_funds = expBest.total_money[expBest.day_number - 1];
         while(true){
             if(MODE == 1){
                 start_index++;
@@ -564,7 +578,7 @@ int main(int argc, const char * argv[]) {
             countTrend(new_portfolio, 1, FUNDS);
             new_portfolio[0].countQuadraticYLine();
             
-            if(isVerifyFinish(new_portfolio) || isLastDay){
+            if(isVerifyFinish(new_portfolio, limit_funds) || isLastDay){
                 outputFile(new_portfolio[0], getOutputFilePath(start_date, end_date, file_dir, "verify"), data, start_index);
                 test_end_date = end_date;
                 test_end_index = end_index;
