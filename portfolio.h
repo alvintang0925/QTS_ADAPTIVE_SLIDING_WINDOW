@@ -27,6 +27,8 @@ void Stock::init(int day_number) {
 void Stock::init(Stock &s){
     this -> init(s.day_number);
     this -> day_number = s.day_number;
+    this -> idx = s.idx;
+    this -> company_name = s.company_name;
     for(int j = 0; j < this -> day_number; j++){
         this -> price_list[j] = s.price_list[j];
     }
@@ -41,6 +43,7 @@ public:
     int size = 0;
     int day_number = 0;
     
+    
     double m = 0;
     double a = -1;
     double b = -1;
@@ -48,6 +51,9 @@ public:
     double trend = 0;
     double remain_money = 0;
     double funds = 0;
+    double capital_highest_point = 0;
+    double MDD = 0;
+    double PF = 0;
     
     int* data = NULL;
     int* investment_number = NULL;
@@ -57,7 +63,8 @@ public:
     Stock* constituent_stocks = NULL;
     
     void init();
-    void init(int, int, int, Stock*);
+    void init(int, int, double, Stock*);
+    void init(int, int, double, Stock*, double, double);
     int getDMoney();
     double getRemainMoney();
     double getNormalY(int);
@@ -66,14 +73,14 @@ public:
     void copyP(Portfolio&);
     void print();
     Portfolio();
-    Portfolio(int, int, int, Stock*);
+    Portfolio(int, int, double, Stock*);
     ~Portfolio();
 };
 
 Portfolio::Portfolio(){
 };
 
-Portfolio::Portfolio(int size, int day_number, int funds, Stock *stock_list) {
+Portfolio::Portfolio(int size, int day_number, double funds, Stock *stock_list) {
     this -> gen = 0;
     this -> exp = 0;
     this -> answer_counter = 0;
@@ -84,10 +91,13 @@ Portfolio::Portfolio(int size, int day_number, int funds, Stock *stock_list) {
     this -> daily_risk = 0;
     this -> trend = 0;
     this -> stock_number = 0;
+    this -> capital_highest_point = 0;
+    this -> MDD = 0;
     this -> remain_money = funds;
     this -> funds = funds;
     this -> size = size;
     this -> day_number = day_number;
+    
     
     
     this -> data = new int[size];
@@ -135,6 +145,8 @@ void Portfolio::init() {
     this -> daily_risk = 0;
     this -> trend = 0;
     this -> stock_number = 0;
+    this -> capital_highest_point = 0;
+    this -> MDD = 0;
     this -> remain_money = this -> funds;
     
     if(this -> data != NULL){
@@ -145,13 +157,16 @@ void Portfolio::init() {
         delete[] this -> stock_id_list;
     }
     this -> data = new int[this -> size];
+    for (int j = 0; j < size; j++) {
+        data[j] = 0;
+    }
     this -> investment_number = new int[this ->size];
     this -> remain_fund = new double[this -> size];
     this -> total_money = new double[this -> day_number];
     this -> stock_id_list = new int[this -> size];
 }
 
-void Portfolio::init(int size, int day_number, int funds, Stock* stock_list) {
+void Portfolio::init(int size, int day_number, double funds, Stock* stock_list) {
     
     this -> gen = 0;
     this -> exp = 0;
@@ -163,6 +178,8 @@ void Portfolio::init(int size, int day_number, int funds, Stock* stock_list) {
     this -> daily_risk = 0;
     this -> trend = 0;
     this -> stock_number = 0;
+    this -> capital_highest_point = 0;
+    this -> MDD = 0;
     this -> remain_money = funds;
     this -> funds = funds;
     this -> size = size;
@@ -178,6 +195,9 @@ void Portfolio::init(int size, int day_number, int funds, Stock* stock_list) {
     }
     
     this -> data = new int[size];
+    for (int j = 0; j < size; j++) {
+        data[j] = 0;
+    }
     this -> investment_number = new int[size];
     this -> remain_fund = new double[size];
     this -> total_money = new double[day_number];
@@ -187,6 +207,12 @@ void Portfolio::init(int size, int day_number, int funds, Stock* stock_list) {
         this -> constituent_stocks[j].init(stock_list[j]);
     }
     
+}
+
+void Portfolio::init(int size, int day_number, double funds, Stock* stock_list, double capital_highest_point, double MDD) {
+    init(size, day_number, funds, stock_list);
+    this -> capital_highest_point = capital_highest_point;
+    this -> MDD = MDD;
 }
 
 int Portfolio::getDMoney() {
@@ -252,6 +278,9 @@ void Portfolio::copyP(Portfolio& a) {
     this -> funds = a.funds;
     this -> size = a.size;
     this -> day_number = a.day_number;
+    this -> MDD = a.MDD;
+    this -> capital_highest_point = a.capital_highest_point;
+    this -> PF = a.PF;
     
     for (int j = 0; j < a.size; j++) {
         this -> data[j] = a.data[j];
