@@ -588,6 +588,9 @@ int main(int argc, const char * argv[]) {
         startTrain(result, stock_list, size, range_day_number);
         if(result.trend != 0){
             outputFile(result, getOutputFilePath(train_start_date, train_end_date, file_dir, "train"), data, start_index);
+        }else {
+                   target_date = data[end_index - TRAINRAGNE + 2][0];
+                   continue;
         }
         delete[] stock_list;
         
@@ -596,10 +599,17 @@ int main(int argc, const char * argv[]) {
         string test_start_date = data[test_start_index][0];
         string test_end_date;
         double limit_funds = result.total_money[result.day_number - 1];
+        double verify_funds;
+        if(MODE == 1){
+             verify_funds = result.total_money[0];
+        }else{
+            verify_funds = FUNDS;
+        }
         
         while(true){
             if(MODE == 1){
                 start_index++;
+                start_date = data[start_index][0];
             }
             end_index++;
             if(end_index == day_number){
@@ -610,12 +620,14 @@ int main(int argc, const char * argv[]) {
             stock_list = new Stock[size];
             createStock(stock_list, size, range_day_number, data, start_index, end_index);
             Portfolio *new_portfolio = new Portfolio[1];
-            new_portfolio[0].init(size, range_day_number, FUNDS, stock_list);
+            new_portfolio[0].init(size, range_day_number, verify_funds, stock_list);
             gen_testPortfolio(new_portfolio, stock_list, 1, data, result);
             capitalLevel(new_portfolio, 1, FUNDS);
             countTrend(new_portfolio, 1, FUNDS);
             new_portfolio[0].countQuadraticYLine();
-            
+            if(MODE == 1){
+                verify_funds = new_portfolio[0].total_money[0];
+            }
             if(isVerifyFinish(new_portfolio) || isLastDay){
                 outputFile(new_portfolio[0], getOutputFilePath(start_date, end_date, file_dir, "verify"), data, start_index);
                 test_end_date = end_date;
@@ -624,6 +636,7 @@ int main(int argc, const char * argv[]) {
                 delete[] new_portfolio;
                 break;
             }
+            
             delete[] stock_list;
             delete[] new_portfolio;
         }
