@@ -235,11 +235,35 @@ void gen_testPortfolio(Portfolio* portfolio_list, Stock* stock_list, int portfol
     }
 }
 
-void capitalLevel(Portfolio* portfolio_list, int portfolio_number, double funds) {
+
+void capitalLevel(Portfolio* portfolio_list, int portfolio_number) {
     for (int j = 0; j < portfolio_number; j++) {
         for (int k = 0; k < portfolio_list[j].stock_number; k++) {
             portfolio_list[j].investment_number[k] = portfolio_list[j].getDMoney() / portfolio_list[j].constituent_stocks[portfolio_list[j].stock_id_list[k]].price_list[0];
             portfolio_list[j].remain_fund[k] = portfolio_list[j].getDMoney() - (portfolio_list[j].investment_number[k] * portfolio_list[j].constituent_stocks[portfolio_list[j].stock_id_list[k]].price_list[0]);
+        }
+//        portfolio_list[j].total_money[0] = funds;
+        for (int k = 0; k < portfolio_list[j].day_number; k++) {
+            portfolio_list[j].total_money[k] = portfolio_list[j].getRemainMoney();
+            for (int h = 0; h < portfolio_list[j].stock_number; h++) {
+                portfolio_list[j].total_money[k] += portfolio_list[j].investment_number[h] * portfolio_list[j].constituent_stocks[portfolio_list[j].stock_id_list[h]].price_list[k + 1];
+            }
+            if(portfolio_list[j].total_money[k] > portfolio_list[j].capital_highest_point){
+                portfolio_list[j].capital_highest_point = portfolio_list[j].total_money[k];
+            }
+            double DD = (portfolio_list[j].capital_highest_point - portfolio_list[j].total_money[k]) / portfolio_list[j].capital_highest_point;
+            if(DD > portfolio_list[j].MDD){
+                portfolio_list[j].MDD = DD;
+            }
+        }
+    }
+}
+
+void capitalLevel(Portfolio* portfolio_list, int portfolio_number, Portfolio &result) {
+    for (int j = 0; j < portfolio_number; j++) {
+        for (int k = 0; k < portfolio_list[0].stock_number; k++) {
+            portfolio_list[0].investment_number[k] = result.investment_number[k];
+            portfolio_list[0].remain_fund[k] = result.remain_fund[k];
         }
 //        portfolio_list[j].total_money[0] = funds;
         for (int k = 0; k < portfolio_list[j].day_number; k++) {
@@ -600,11 +624,11 @@ int main(int argc, const char * argv[]) {
         string test_end_date;
         double limit_funds = result.total_money[result.day_number - 1];
         double verify_funds;
-        if(MODE == 1){
-             verify_funds = result.total_money[0];
-        }else{
+//        if(MODE == 1){
+//             verify_funds = result.total_money[0];
+//        }else{
             verify_funds = FUNDS;
-        }
+//        }
         
         while(true){
             if(MODE == 1){
@@ -622,11 +646,15 @@ int main(int argc, const char * argv[]) {
             Portfolio *new_portfolio = new Portfolio[1];
             new_portfolio[0].init(size, range_day_number, verify_funds, stock_list);
             gen_testPortfolio(new_portfolio, stock_list, 1, data, result);
-            capitalLevel(new_portfolio, 1, FUNDS);
-            countTrend(new_portfolio, 1, FUNDS);
+            if(MODE == 1){
+                capitalLevel(new_portfolio, 1, result);
+            }else{
+                capitalLevel(new_portfolio, 1);
+            }
+            countTrend(new_portfolio, 1, verify_funds);
             new_portfolio[0].countQuadraticYLine();
             if(MODE == 1){
-                verify_funds = new_portfolio[0].total_money[0];
+//                verify_funds = new_portfolio[0].total_money[0];
             }
             if(isVerifyFinish(new_portfolio) || isLastDay){
                 outputFile(new_portfolio[0], getOutputFilePath(start_date, end_date, file_dir, "verify"), data, start_index);

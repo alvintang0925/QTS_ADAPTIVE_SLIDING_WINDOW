@@ -229,7 +229,7 @@ double Portfolio::getRemainMoney() {
     if (this->stock_number != 0) {
         double sum = 0;
         for (int j = 0; j < stock_number; j++) {
-            sum += (double)this->getDMoney() - (this->investment_number[j] * this->constituent_stocks[this -> stock_id_list[j]].price_list[0]);
+            sum += this -> remain_fund[j];
         }
         int temp = this -> funds;
         return (temp % this->stock_number) + sum + (this -> funds - temp);
