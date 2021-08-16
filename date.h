@@ -8,6 +8,7 @@ public:
     std::string getYear();
     std::string getQ();
     std::string getMon();
+    std::string getDate();
     Date getRangeEnd(int);
     void slide();
     void slide(int);
@@ -31,6 +32,10 @@ std::string Date::getMon() {
     else {
         return "0" + std::to_string((this->date.tm_mon) + 1);
     }
+}
+
+std::string Date::getDate(){
+    return this -> getYear() + this -> getMon();
 }
 
 Date Date::getRangeEnd(int range) {

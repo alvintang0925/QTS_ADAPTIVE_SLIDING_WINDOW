@@ -496,12 +496,10 @@ void outputFile(Portfolio& portfolio, string file_name, string **data, int start
         for (int k = 0; k < portfolio.stock_number; k++) {
             outfile << (portfolio.constituent_stocks[portfolio.stock_id_list[k]].price_list[j + 1] * portfolio.investment_number[k]) + portfolio.remain_fund[k] << ",";
         }
-//        outfile << 2 * portfolio.a * (j+1) + portfolio.b << ",";
         outfile << portfolio.total_money[j] << endl;
     }
     outfile << endl;
     outfile.close();
-
 }
 
 void recordCPUTime(double START, double END){
@@ -556,7 +554,7 @@ void startTrain(Portfolio &result, Stock *stock_list, int size, int range_day_nu
             pWorst.init();
             initPortfolio(portfolio_list);
             genPortfolio(portfolio_list, stock_list, PORTFOLIONUMBER, beta_, n, i);
-            capitalLevel(portfolio_list, PORTFOLIONUMBER, FUNDS);
+            capitalLevel(portfolio_list, PORTFOLIONUMBER);
             countTrend(portfolio_list, PORTFOLIONUMBER, FUNDS);
             recordGAnswer(portfolio_list, gBest, gWorst, pBest, pWorst);
             adjBeta(gBest, pWorst, beta_);
@@ -596,6 +594,11 @@ int main(int argc, const char * argv[]) {
     double neg_award = 0;
     bool isLastDay = false;
     
+    ofstream outfile_total_data;
+    string total_data_name = file_dir + "/" + "total_data.csv";
+    outfile_total_data.open(total_data_name, ios::out);
+    outfile_total_data << "train date,test date,test day number,MDD,profit,PF" << endl;
+    
     while(!isLastDay){
         setWindow(target_date, start_date, end_date, start_index, end_index,data, day_number, range_day_number);
         cout << MODE << "_" << start_date << " - " << end_date << endl;
@@ -613,8 +616,8 @@ int main(int argc, const char * argv[]) {
         if(result.trend != 0){
             outputFile(result, getOutputFilePath(train_start_date, train_end_date, file_dir, "train"), data, start_index);
         }else {
-                   target_date = data[end_index - TRAINRAGNE + 2][0];
-                   continue;
+            target_date = data[end_index - TRAINRAGNE + 2][0];
+            continue;
         }
         delete[] stock_list;
         
@@ -624,11 +627,11 @@ int main(int argc, const char * argv[]) {
         string test_end_date;
         double limit_funds = result.total_money[result.day_number - 1];
         double verify_funds;
-//        if(MODE == 1){
-//             verify_funds = result.total_money[0];
-//        }else{
+        if(MODE == 1){
+            verify_funds = result.total_money[0];
+        }else{
             verify_funds = FUNDS;
-//        }
+        }
         
         while(true){
             if(MODE == 1){
@@ -654,7 +657,7 @@ int main(int argc, const char * argv[]) {
             countTrend(new_portfolio, 1, verify_funds);
             new_portfolio[0].countQuadraticYLine();
             if(MODE == 1){
-//                verify_funds = new_portfolio[0].total_money[0];
+                verify_funds = new_portfolio[0].total_money[0];
             }
             if(isVerifyFinish(new_portfolio) || isLastDay){
                 outputFile(new_portfolio[0], getOutputFilePath(start_date, end_date, file_dir, "verify"), data, start_index);
@@ -675,7 +678,7 @@ int main(int argc, const char * argv[]) {
         Portfolio *new_portfolio = new Portfolio[1];
         new_portfolio[0].init(size, range_day_number, current_funds, stock_list, capital_highest_point, MDD);
         gen_testPortfolio(new_portfolio, stock_list, 1, data, result);
-        capitalLevel(new_portfolio, 1, current_funds);
+        capitalLevel(new_portfolio, 1);
         countTrend(new_portfolio, 1, current_funds);
         current_funds = new_portfolio[0].total_money[new_portfolio[0].day_number - 1];
 //        capital_highest_point = new_portfolio[0].capital_highest_point;
@@ -691,6 +694,12 @@ int main(int argc, const char * argv[]) {
         }else{
             new_portfolio[0].PF = pos_award / neg_award;
         }
+        outfile_total_data << train_start_date << " - " << train_end_date << ",";
+        outfile_total_data << test_start_date << " - " << test_end_date << ",";
+        outfile_total_data << range_day_number << ",";
+        outfile_total_data << new_portfolio[0].MDD << ",";
+        outfile_total_data << new_portfolio[0].total_money[new_portfolio[0].day_number - 1] - new_portfolio[0].funds << ",";
+        outfile_total_data << new_portfolio[0].PF << endl;
         outputFile(new_portfolio[0], getOutputFilePath(test_start_date, test_end_date, file_dir, "test"), data, test_start_index);
         delete[] new_portfolio;
         delete[] stock_list;
@@ -708,6 +717,7 @@ int main(int argc, const char * argv[]) {
         data_vector[j].clear();
         delete[] data[j];
     }
+    
     data_vector.clear();
     delete[] data;
     
