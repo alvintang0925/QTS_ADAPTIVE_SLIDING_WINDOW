@@ -26,16 +26,116 @@ using namespace filesystem;
 
 #define EXPNUMBER 50
 #define ITERNUMBER 10000
-#define PORTFOLIONUMBER 10
-#define FUNDS 10000000
+#define PARTICLENUMBER 10
+#define FUNDS 10000000.0
 #define DELTA 0.0004
 #define QTSTYPE 2 //QTS 0, GQTS 1, GNQTS 2
 #define TRENDLINETYPE 0 //linear 0, quadratic 1
-#define MODE 1 //extended 0, moved 1
+#define MODE 1 //IC_NL 0, IC_LTT 1, DC_NL 2
+#define STOPTYPE 0 //loss & profit 0, linear 1, quadratic 2, linear + L&P 3
 #define STARTDATE "20100930"
-#define TRAINRAGNE 65
+#define TRAINRANGE 65
 
-string file_dir = "0729_1";
+double LOWER = 0.1;
+double UPPER = 0.1;
+string FILE_DIR = "0824_IC_NL_GNQ_LN_10%";
+string DATA_FILE_NAME = "2011-2020.csv";
+
+class TradePeriod{
+public:
+    string* date_list = NULL;
+    
+    int start_index = 0;
+    int end_index = 0;
+    int train_start_index = 0;
+    int train_end_index = 0;
+    int train_day_number = 0;
+    int verify_start_index = 0;
+    int verify_end_index = 0;
+    int verify_day_number = 0;
+    int test_start_index = 0;
+    int test_end_index = 0;
+    int test_day_number = 0;
+    
+    Portfolio train_result;
+    Portfolio verify_result;
+    Portfolio test_result;
+    
+    void init(int, string**);
+    string getTrainStartDate();
+    string getTrainEndDate();
+    string getVerifyStartDate();
+    string getVerifyEndDate();
+    string getTestStartDate();
+    string getTestEndDate();
+    int getTrainDayNumber();
+    int getVerifyDayNumber();
+    int getTestDayNumber();
+    
+    string getDate(int);
+    TradePeriod();
+    ~TradePeriod();
+    
+};
+
+TradePeriod::TradePeriod(){}
+TradePeriod::~TradePeriod(){
+    if(this -> date_list != NULL){
+        delete[] date_list;
+    }
+    date_list = NULL;
+}
+
+void TradePeriod::init(int day_number, string** data){
+    if(this -> date_list != NULL){
+        delete[] date_list;
+    }
+    this -> date_list = new string[day_number];
+    for(int j = 0; j < day_number; j++){
+        this -> date_list[j] = data[j+1][0];
+    }
+}
+
+string TradePeriod::getTrainStartDate(){
+    return date_list[train_start_index];
+}
+
+string TradePeriod::getTrainEndDate(){
+    return date_list[train_end_index];
+}
+
+string TradePeriod::getVerifyStartDate(){
+    return date_list[verify_start_index];
+}
+
+string TradePeriod::getVerifyEndDate(){
+    return date_list[verify_end_index];
+}
+
+string TradePeriod::getTestStartDate(){
+    return date_list[test_start_index];
+}
+
+string TradePeriod::getTestEndDate(){
+    return date_list[test_end_index];
+}
+
+string TradePeriod::getDate(int index){
+    return date_list[index];
+}
+
+int TradePeriod::getTrainDayNumber(){
+    return this -> train_end_index - this -> train_start_index + 1;
+}
+
+int TradePeriod::getVerifyDayNumber(){
+    return this -> verify_end_index - this -> verify_start_index + 1;
+}
+
+int TradePeriod::getTestDayNumber(){
+    return this -> test_end_index - this -> test_start_index + 1;
+}
+
 
 bool readData(string filename, vector<vector<string>> &data_vector, int &size, int &day_number) {
     cout << filename << endl;
@@ -125,13 +225,14 @@ string* vectorToArray(vector<string> myTrainData_vector){
     return d;
 }
 
-void createStock(Stock* stock_list, int size, int range_day_number, string **data, int start_index, int end_index) {
+void createStock(Stock* stock_list, int size, string **data, int start_index, int end_index, int day_number) {
     for (int j = 0; j < size; j++) {
         stock_list[j].idx = j;
-        stock_list[j].init(range_day_number + 1);
+        stock_list[j].init(day_number + 1);
         stock_list[j].company_name = data[0][j+1];
         for (int k = start_index - 1; k <= end_index; k++) {
             stock_list[j].price_list[k - start_index + 1] = atof(data[k][j+1].c_str());
+            stock_list[j].date_list[k - start_index + 1] = data[k][j+1];
         }
     }
 }
@@ -150,17 +251,13 @@ void copyData(string *data_copy, string **data, int day_number){
     }
 }
 
-void setWindow(string target_date, string &start_date, string &end_date, int &start_index, int &end_index, string** data, int day_number, int &range_day_number){
-
+void setWindow(string target_date, int day_number, TradePeriod &trade_period){
     for(int j = 0; j < day_number; j++){
-        if(target_date == data[j+1][0]){
-            start_date = data[j+1][0];
-            end_date = data[j+TRAINRAGNE][0];
-            start_index = j + 1;
-            end_index = j + TRAINRAGNE;
+        if(target_date == trade_period.date_list[j]){
+            trade_period.train_start_index = j;
+            trade_period.train_end_index = j + TRAINRANGE - 1;
         }
     }
-    range_day_number = end_index - start_index + 1;
 }
 
 void initial(double *b, int size) {
@@ -170,13 +267,13 @@ void initial(double *b, int size) {
 }
 
 void initPortfolio(Portfolio *p, int size, int day_number, Stock *stock_list){
-    for(int j = 0; j < PORTFOLIONUMBER; j++){
+    for(int j = 0; j < PARTICLENUMBER; j++){
         p[j].init(size, day_number, FUNDS, stock_list);
     }
 }
 
 void initPortfolio(Portfolio *p){
-    for(int j = 0; j < PORTFOLIONUMBER; j++){
+    for(int j = 0; j < PARTICLENUMBER; j++){
         p[j].init();
     }
 }
@@ -205,32 +302,27 @@ void genPortfolio(Portfolio* portfolio_list, Stock* stock_list, int portfolio_nu
     }
 }
 
-void gen_testPortfolio(Portfolio* portfolio_list, Stock* stock_list, int portfolio_number, string **data, string *myTrainData, int myTrainData_size) {
-    for (int j = 0; j < portfolio_number; j++) {
-        for(int k = 0; k < portfolio_list[j].size; k++){
-            for(int h = 0; h < myTrainData_size; h++){
-                if(data[0][k+1] == myTrainData[h]){
-                    portfolio_list[j].data[k] = 1;
-                    portfolio_list[j].stock_id_list[portfolio_list[j].stock_number] = k;
-                    portfolio_list[j].stock_number++;
-                    break;
-                }
+void genTestPortfolio(Portfolio &portfolio, Stock* stock_list, string **data, string *myTrainData, int myTrainData_size) {
+    for(int j = 0; j < portfolio.size; j++){
+        for(int k = 0; k < myTrainData_size; k++){
+            if(data[0][j+1] == myTrainData[k]){
+                portfolio.data[j] = 1;
+                portfolio.stock_id_list[portfolio.stock_number] = j;
+                portfolio.stock_number++;
+                break;
             }
         }
     }
 }
 
-void gen_testPortfolio(Portfolio* portfolio_list, Stock* stock_list, int portfolio_number, string **data, Portfolio &temp_portfolio) {
-    for (int j = 0; j < portfolio_number; j++) {
-        for(int k = 0; k < portfolio_list[j].size; k++){
-            if(k == temp_portfolio.stock_id_list[portfolio_list[j].stock_number] && portfolio_list[j].stock_number < temp_portfolio.stock_number){
-                portfolio_list[j].data[k] = 1;
-                portfolio_list[j].stock_id_list[portfolio_list[j].stock_number] = k;
-                portfolio_list[j].stock_number++;
-            }else{
-                portfolio_list[j].data[k] = 0;
-            }
-            
+void genTestPortfolio(Portfolio &portfolio, Stock* stock_list, Portfolio &temp_portfolio) {
+    for(int j = 0; j < portfolio.size; j++){
+        if(j == temp_portfolio.stock_id_list[portfolio.stock_number] && portfolio.stock_number < temp_portfolio.stock_number){
+            portfolio.data[j] = 1;
+            portfolio.stock_id_list[portfolio.stock_number] = j;
+            portfolio.stock_number++;
+        }else{
+            portfolio.data[j] = 0;
         }
     }
 }
@@ -242,7 +334,7 @@ void capitalLevel(Portfolio* portfolio_list, int portfolio_number) {
             portfolio_list[j].investment_number[k] = portfolio_list[j].getDMoney() / portfolio_list[j].constituent_stocks[portfolio_list[j].stock_id_list[k]].price_list[0];
             portfolio_list[j].remain_fund[k] = portfolio_list[j].getDMoney() - (portfolio_list[j].investment_number[k] * portfolio_list[j].constituent_stocks[portfolio_list[j].stock_id_list[k]].price_list[0]);
         }
-//        portfolio_list[j].total_money[0] = funds;
+
         for (int k = 0; k < portfolio_list[j].day_number; k++) {
             portfolio_list[j].total_money[k] = portfolio_list[j].getRemainMoney();
             for (int h = 0; h < portfolio_list[j].stock_number; h++) {
@@ -326,8 +418,8 @@ void countTrend(Portfolio* portfolio_list, int porfolio_number, double funds) {
 
 void recordGAnswer(Portfolio* portfolio_list, Portfolio& gBest, Portfolio& gWorst, Portfolio& pBest, Portfolio& pWorst) {
     pBest.copyP(portfolio_list[0]);
-    pWorst.copyP(portfolio_list[PORTFOLIONUMBER - 1]);
-    for (int j = 0; j < PORTFOLIONUMBER; j++) {
+    pWorst.copyP(portfolio_list[PARTICLENUMBER - 1]);
+    for (int j = 0; j < PARTICLENUMBER; j++) {
         if (pBest.trend < portfolio_list[j].trend) {
             pBest.copyP(portfolio_list[j]);
         }
@@ -394,19 +486,19 @@ string getOutputFilePath(string start_date, string end_date, string file_dir, st
     return file_dir + "/" + type + "/" + type + "_" + start_date + "_" + end_date + ".csv";
 }
 
-void outputFile(Portfolio& portfolio, string file_name, string **data, int start_index) {
+void outputFile(Portfolio& portfolio, string file_name) {
     ofstream outfile;
     outfile.open(file_name, ios::out);
     outfile << setprecision(15);
 
     outfile << "Iteration," << ITERNUMBER << endl;
-    outfile << "Element number," << PORTFOLIONUMBER << endl;
+    outfile << "Element number," << PARTICLENUMBER << endl;
     outfile << "Delta," << DELTA << endl;
     outfile << "Exp times," << EXPNUMBER << endl << endl;
     
     outfile << "Init funds," << portfolio.funds << endl;
     outfile << "Final funds," << portfolio.total_money[portfolio.day_number - 1] << endl;
-    outfile << "Real award," << portfolio.total_money[portfolio.day_number - 1] - portfolio.funds << endl << endl;
+    outfile << "Real award," << portfolio.getProfit() << endl << endl;
     
     outfile << "MMD," << portfolio.MDD << endl;
     outfile << "PF," << portfolio.PF << endl << endl;
@@ -492,7 +584,7 @@ void outputFile(Portfolio& portfolio, string file_name, string **data, int start
     outfile << endl;
 
     for (int j = 0; j < portfolio.day_number; j++) {
-        outfile << data[start_index + j][0] << ",";
+        outfile << portfolio.date_list[j] << ",";
         for (int k = 0; k < portfolio.stock_number; k++) {
             outfile << (portfolio.constituent_stocks[portfolio.stock_id_list[k]].price_list[j + 1] * portfolio.investment_number[k]) + portfolio.remain_fund[k] << ",";
         }
@@ -505,57 +597,61 @@ void outputFile(Portfolio& portfolio, string file_name, string **data, int start
 void recordCPUTime(double START, double END){
     double total_time = (END - START) / CLOCKS_PER_SEC;
     ofstream outfile_time;
-    string file_name = file_dir + "/" + "time.txt";
+    string file_name = FILE_DIR + "/" + "time.txt";
     outfile_time.open(file_name, ios::out);
     outfile_time << "total time: " << total_time << " sec" << endl;
 }
 
-bool isVerifyFinish(Portfolio* portfolio){
-    double slope = 2 * portfolio[0].a * portfolio[0].day_number + portfolio[0].b;
-    if(slope < 0){
-        return true;
-    }else{
-        return false;
+bool isVerifyFinish(Portfolio &portfolio, double standard_funds){
+    if(STOPTYPE == 0){
+        double lowerBound = standard_funds * (1 - LOWER);
+        double upperBound = standard_funds * (1 + UPPER);
+        
+        double myFunds = portfolio.funds + portfolio.getProfit();
+        if( myFunds > lowerBound || myFunds < upperBound){
+            return true;
+        }else{
+            return false;
+        }
+    }else if(STOPTYPE == 1){
+        
+    }else if(STOPTYPE == 2){
+        double slope = 2 * portfolio.a * portfolio.day_number + portfolio.b;
+        if(slope < 0){
+            return true;
+        }else{
+            return false;
+        }
+    }else if(STOPTYPE == 3){
+        
     }
-
 }
 
-bool isVerifyFinish(Portfolio* portfolio, double limit_funds){
-    double upperBound = limit_funds * 1.1;
-    double lowerBound = limit_funds * 0.9;
-    double myFunds =portfolio[0].total_money[portfolio[0].day_number - 1];
-    if( myFunds > upperBound || myFunds < lowerBound){
-        return true;
-    }else{
-        return false;
-    }
-}
-
-void startTrain(Portfolio &result, Stock *stock_list, int size, int range_day_number){
+void startTrain(Portfolio &result, Stock *stock_list, int size, int range_day_number, double funds, int particle_number, int exp_number, int iter_number){
     
     double *beta_ = new double[size];
-    Portfolio expBest(size, range_day_number, FUNDS, stock_list);
-    Portfolio gBest(size, range_day_number, FUNDS, stock_list);
-    Portfolio gWorst(size, range_day_number, FUNDS, stock_list);
-    Portfolio pBest(size, range_day_number, FUNDS, stock_list);
-    Portfolio pWorst(size, range_day_number, FUNDS, stock_list);
-    Portfolio* portfolio_list = new Portfolio[PORTFOLIONUMBER];
+    Portfolio expBest(size, range_day_number, funds, stock_list);
+    Portfolio gBest(size, range_day_number, funds, stock_list);
+    Portfolio gWorst(size, range_day_number, funds, stock_list);
+    Portfolio pBest(size, range_day_number, funds, stock_list);
+    Portfolio pWorst(size, range_day_number, funds, stock_list);
+    Portfolio* portfolio_list = new Portfolio[particle_number];
     initPortfolio(portfolio_list, size, range_day_number, stock_list);
     
-    for(int n = 0; n < EXPNUMBER; n++){
+    for(int n = 0; n < exp_number; n++){
         cout << "___" << n << "___" << endl;
         gBest.init();
         gWorst.init();
         gBest.trend = 0;
         gWorst.trend = DBL_MAX;
         initial(beta_, size);
-        for(int i = 0; i < ITERNUMBER; i++){
+        for(int i = 0; i < iter_number; i++){
             pBest.init();
             pWorst.init();
             initPortfolio(portfolio_list);
-            genPortfolio(portfolio_list, stock_list, PORTFOLIONUMBER, beta_, n, i);
-            capitalLevel(portfolio_list, PORTFOLIONUMBER);
-            countTrend(portfolio_list, PORTFOLIONUMBER, FUNDS);
+            genPortfolio(portfolio_list, stock_list, particle_number, beta_, n, i);
+            capitalLevel(portfolio_list, particle_number);
+            countTrend(portfolio_list, particle_number, funds);
             recordGAnswer(portfolio_list, gBest, gWorst, pBest, pWorst);
             adjBeta(gBest, pWorst, beta_);
         }
@@ -569,145 +665,157 @@ void startTrain(Portfolio &result, Stock *stock_list, int size, int range_day_nu
 
 }
 
+void startVerify(Portfolio &result, Portfolio &train_result, Stock *stock_list, int size, int range_day_number, double funds){
+    
+    Portfolio* portfolio = new Portfolio[1];
+    portfolio[0].init(size, range_day_number, funds, stock_list);
+    genTestPortfolio(portfolio[0], stock_list, train_result);
+    
+    if(MODE == 1){
+        capitalLevel(portfolio, 1, train_result);
+    }else{
+        capitalLevel(portfolio, 1);
+    }
+    countTrend(portfolio, 1, funds);
+    portfolio[0].countQuadraticYLine();
+    result.copyP(portfolio[0]);
+    delete[] portfolio;
+}
+
+void startTest(Portfolio &result, Portfolio &train_result, Stock *stock_list, int size, int range_day_number, double funds){
+    Portfolio* portfolio = new Portfolio[1];
+    portfolio[0].init(size, range_day_number, funds, stock_list);
+    genTestPortfolio(portfolio[0], stock_list, train_result);
+    capitalLevel(portfolio, 1);
+    countTrend(portfolio, 1, funds);
+    portfolio[0].countQuadraticYLine();
+    result.copyP(portfolio[0]);
+    delete[] portfolio;
+}
+
 int main(int argc, const char * argv[]) {
+    double START, END;
+    START = clock();
     srand(114);
+    cout << setprecision(10);
     int size;
     int day_number;
-    double START, END;
-    string** data;
-    vector<vector<string>> data_vector;
-    
-    START = clock();
-    createDir(file_dir);
-    readData("2011-2020.csv", data_vector, size, day_number);
-    data = vectorToArray(data_vector);
     string target_date = STARTDATE;
-    string start_date;
-    string end_date;
-    int start_index;
-    int end_index;
-    int range_day_number;
-    double current_funds = FUNDS;
+    double funds = FUNDS;
+    double test_funds = FUNDS;
     double capital_highest_point = 0;
     double MDD = 0;
     double pos_award = 0;
     double neg_award = 0;
     bool isLastDay = false;
+    string** data;
+    vector<vector<string>> data_vector;
+    Portfolio result;
+    
+    createDir(FILE_DIR);
+    readData("2011-2020.csv", data_vector, size, day_number);
+    data = vectorToArray(data_vector);
     
     ofstream outfile_total_data;
-    string total_data_name = file_dir + "/" + "total_data.csv";
+    string total_data_name = FILE_DIR + "/" + "total_data.csv";
     outfile_total_data.open(total_data_name, ios::out);
     outfile_total_data << "train date,test date,test day number,MDD,profit,PF" << endl;
     
     while(!isLastDay){
-        setWindow(target_date, start_date, end_date, start_index, end_index,data, day_number, range_day_number);
-        cout << MODE << "_" << start_date << " - " << end_date << endl;
         
+        TradePeriod trade_period;
+        trade_period.init(day_number, data);
+        setWindow(target_date, day_number, trade_period);
+        
+        //______Train______
+        cout << MODE << "_" << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << endl;
         Stock* stock_list = new Stock[size];
-        createStock(stock_list, size, range_day_number, data, start_index, end_index);
+        createStock(stock_list, size, data, trade_period.getTrainDayNumber(), trade_period.train_start_index, trade_period.train_end_index);
         
-        string train_start_date = start_date;
-        string train_end_date = end_date;
-        int train_start_index = start_index;
-        int train_end_index = end_index;
-        
-        Portfolio result(size, range_day_number, FUNDS, stock_list);
-        startTrain(result, stock_list, size, range_day_number);
+        result.init(size, trade_period.getTrainDayNumber(), FUNDS, stock_list);
+        startTrain(result, stock_list, size, trade_period.getTrainDayNumber(), FUNDS, PARTICLENUMBER, EXPNUMBER, ITERNUMBER);
         if(result.trend != 0){
-            outputFile(result, getOutputFilePath(train_start_date, train_end_date, file_dir, "train"), data, start_index);
+            outputFile(trade_period.train_result, getOutputFilePath(trade_period.getTrainStartDate(), trade_period.getTrainEndDate(), FILE_DIR, "train"));
         }else {
-            target_date = data[end_index - TRAINRAGNE + 2][0];
+            target_date = trade_period.getDate(trade_period.train_start_index + 1);
             continue;
         }
-        delete[] stock_list;
         
-        int test_start_index = end_index+1;
-        int test_end_index;
-        string test_start_date = data[test_start_index][0];
-        string test_end_date;
-        double limit_funds = result.total_money[result.day_number - 1];
+        //______Verify______
+        double standard_funds;
         double verify_funds;
-        if(MODE == 1){
+        
+        standard_funds = result.funds + result.getProfit();
+        if(MODE == 2){
             verify_funds = result.total_money[0];
         }else{
             verify_funds = FUNDS;
         }
-        
+        trade_period.verify_start_index = trade_period.train_start_index;
+        trade_period.verify_end_index = trade_period.train_end_index;
         while(true){
-            if(MODE == 1){
-                start_index++;
-                start_date = data[start_index][0];
+            if(MODE == 2){
+                trade_period.verify_start_index++;
             }
-            end_index++;
-            if(end_index == day_number){
+            trade_period.verify_end_index++;
+            
+            if(trade_period.verify_end_index == day_number-1){
                 isLastDay = true;
             }
-            range_day_number = end_index - start_index + 1;
-            end_date = data[end_index][0];
+            
             stock_list = new Stock[size];
-            createStock(stock_list, size, range_day_number, data, start_index, end_index);
-            Portfolio *new_portfolio = new Portfolio[1];
-            new_portfolio[0].init(size, range_day_number, verify_funds, stock_list);
-            gen_testPortfolio(new_portfolio, stock_list, 1, data, result);
-            if(MODE == 1){
-                capitalLevel(new_portfolio, 1, result);
-            }else{
-                capitalLevel(new_portfolio, 1);
+            createStock(stock_list, size, data, trade_period.getVerifyDayNumber(), trade_period.verify_start_index, trade_period.verify_end_index);
+            
+            result.init(size, trade_period.getVerifyDayNumber(), verify_funds, stock_list);
+            startVerify(result, trade_period.train_result, stock_list, size, trade_period.getVerifyDayNumber(), verify_funds);
+            trade_period.verify_result.copyP(result);
+            if(MODE == 2){
+                verify_funds = result.total_money[0];
             }
-            countTrend(new_portfolio, 1, verify_funds);
-            new_portfolio[0].countQuadraticYLine();
-            if(MODE == 1){
-                verify_funds = new_portfolio[0].total_money[0];
-            }
-            if(isVerifyFinish(new_portfolio) || isLastDay){
-                outputFile(new_portfolio[0], getOutputFilePath(start_date, end_date, file_dir, "verify"), data, start_index);
-                test_end_date = end_date;
-                test_end_index = end_index;
-                delete[] stock_list;
-                delete[] new_portfolio;
+            delete[] stock_list;
+            
+            if(isVerifyFinish(trade_period.verify_result, standard_funds) || isLastDay){
+                outputFile(trade_period.verify_result, getOutputFilePath(trade_period.getVerifyStartDate(), trade_period.getVerifyEndDate(), FILE_DIR, "verify"));
                 break;
             }
             
-            delete[] stock_list;
-            delete[] new_portfolio;
         }
         
-        range_day_number = test_end_index - test_start_index + 1;
+        //______Test______
         stock_list = new Stock[size];
-        createStock(stock_list, size, range_day_number, data, test_start_index, test_end_index);
-        Portfolio *new_portfolio = new Portfolio[1];
-        new_portfolio[0].init(size, range_day_number, current_funds, stock_list, capital_highest_point, MDD);
-        gen_testPortfolio(new_portfolio, stock_list, 1, data, result);
-        capitalLevel(new_portfolio, 1);
-        countTrend(new_portfolio, 1, current_funds);
-        current_funds = new_portfolio[0].total_money[new_portfolio[0].day_number - 1];
-//        capital_highest_point = new_portfolio[0].capital_highest_point;
-//        MDD = new_portfolio[0].MDD;
-        if(new_portfolio[0].total_money[new_portfolio[0].day_number - 1] - new_portfolio[0].funds >= 0){
-            pos_award += new_portfolio[0].total_money[new_portfolio[0].day_number - 1] - new_portfolio[0].funds;
+        createStock(stock_list, size, data, trade_period.getTestDayNumber(), trade_period.test_start_index, trade_period.test_end_index);
+        
+        result.init(size, trade_period.getTestDayNumber(), test_funds, stock_list);
+        startTest(result, trade_period.train_result, stock_list, size, trade_period.getVerifyDayNumber(), test_funds);
+        trade_period.test_result.copyP(result);
+        delete[] stock_list;
+        test_funds = trade_period.test_result.funds + trade_period.test_result.getProfit();
+        
+        if(trade_period.test_result.getProfit() >= 0){
+            pos_award += trade_period.test_result.getProfit();
         }else{
-            neg_award += -1 * (new_portfolio[0].total_money[new_portfolio[0].day_number - 1] - new_portfolio[0].funds);
+            neg_award += -1 * trade_period.test_result.getProfit();
         }
         
         if(neg_award == 0){
-            new_portfolio[0].PF = -1;
+            trade_period.test_result.PF = -1;
         }else{
-            new_portfolio[0].PF = pos_award / neg_award;
+            trade_period.test_result.PF = pos_award / neg_award;
         }
-        outfile_total_data << train_start_date << " - " << train_end_date << ",";
-        outfile_total_data << test_start_date << " - " << test_end_date << ",";
-        outfile_total_data << range_day_number << ",";
-        outfile_total_data << new_portfolio[0].MDD << ",";
-        outfile_total_data << new_portfolio[0].total_money[new_portfolio[0].day_number - 1] - new_portfolio[0].funds << ",";
-        outfile_total_data << new_portfolio[0].PF << endl;
-        outputFile(new_portfolio[0], getOutputFilePath(test_start_date, test_end_date, file_dir, "test"), data, test_start_index);
-        delete[] new_portfolio;
-        delete[] stock_list;
+        outfile_total_data << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << ",";
+        outfile_total_data << trade_period.getTestStartDate() << " - " << trade_period.getTestStartDate() << ",";
+        outfile_total_data << trade_period.getTestDayNumber() << ",";
+        outfile_total_data << trade_period.test_result.MDD << ",";
+        outfile_total_data << trade_period.test_result.getProfit() << ",";
+        outfile_total_data << trade_period.test_result.PF << endl;
         
-        cout << test_start_date << " - " << test_end_date << endl;
-        cout << "test days: " << range_day_number << endl;
+        outputFile(trade_period.test_result, getOutputFilePath(trade_period.getTestStartDate(), trade_period.getTestEndDate(), FILE_DIR, "test"));
+        
+        cout << trade_period.getTestStartDate() << " - " << trade_period.getTestStartDate() << endl;
+        cout << "test days: " << trade_period.getTestDayNumber() << endl;
         cout << endl << endl;
-        target_date = data[test_end_index - TRAINRAGNE + 1][0];
+
+        target_date = trade_period.getDate(trade_period.test_end_index - TRAINRANGE + 1);
     }
     
     END = clock();

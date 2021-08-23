@@ -10,6 +10,7 @@ public:
     int idx;
     int day_number = 0;
     double* price_list = NULL;
+    string* date_list = NULL;
     void init(int);
     void init(Stock&);
     ~Stock();
@@ -17,11 +18,13 @@ public:
 
 Stock::~Stock(){
     delete[] price_list;
+    delete[] date_list;
 }
 
 void Stock::init(int day_number) {
     this -> day_number = day_number;
     this -> price_list = new double[day_number];
+    this -> date_list = new string[day_number];
 }
 
 void Stock::init(Stock &s){
@@ -55,12 +58,15 @@ public:
     double MDD = 0;
     double PF = 0;
     
+    string date = "";
+    
     int* data = NULL;
     int* investment_number = NULL;
     int* stock_id_list = NULL;
     double* total_money = NULL;
     double* remain_fund = NULL;
     Stock* constituent_stocks = NULL;
+    string* date_list = NULL;
     
     void init();
     void init(int, int, double, Stock*);
@@ -68,6 +74,7 @@ public:
     int getDMoney();
     double getRemainMoney();
     double getNormalY(int);
+    double getProfit();
     void countQuadraticYLine();
     double getQuadraticY(int);
     void copyP(Portfolio&);
@@ -97,20 +104,27 @@ Portfolio::Portfolio(int size, int day_number, double funds, Stock *stock_list) 
     this -> funds = funds;
     this -> size = size;
     this -> day_number = day_number;
-    
+    this -> date = "";
     
     
     this -> data = new int[size];
-    for (int j = 0; j < size; j++) {
-        data[j] = 0;
-    }
     this -> investment_number = new int[size];
     this -> constituent_stocks = new Stock[size];
     this -> remain_fund = new double[size];
     this -> total_money = new double[day_number];
     this -> stock_id_list = new int[this -> size];
+    this -> date_list = new string[day_number];
+    
+    for (int j = 0; j < size; j++) {
+        data[j] = 0;
+    }
+    
     for(int j = 0; j < size; j++){
         this -> constituent_stocks[j].init(stock_list[j]);
+    }
+    
+    for(int j = 0; j < day_number; j++){
+        this -> date_list[j] = stock_list[0].date_list[j+1];
     }
 }
 
@@ -122,6 +136,7 @@ Portfolio::~Portfolio() {
         delete[] this -> remain_fund;
         delete[] this -> total_money;
         delete[] this -> stock_id_list;
+        delete[] this -> date_list;
     }
     
     this -> data = NULL;
@@ -130,8 +145,7 @@ Portfolio::~Portfolio() {
     this -> remain_fund = NULL;
     this -> total_money = NULL;
     this -> stock_id_list = NULL;
-    
-    
+    this -> date_list = NULL;
 }
 
 void Portfolio::init() {
@@ -147,6 +161,7 @@ void Portfolio::init() {
     this -> stock_number = 0;
     this -> capital_highest_point = 0;
     this -> MDD = 0;
+    this -> date = "";
     this -> remain_money = this -> funds;
     
     if(this -> data != NULL){
@@ -155,6 +170,7 @@ void Portfolio::init() {
         delete[] this -> remain_fund;
         delete[] this -> total_money;
         delete[] this -> stock_id_list;
+        delete[] this -> date_list;
     }
     this -> data = new int[this -> size];
     for (int j = 0; j < size; j++) {
@@ -164,6 +180,7 @@ void Portfolio::init() {
     this -> remain_fund = new double[this -> size];
     this -> total_money = new double[this -> day_number];
     this -> stock_id_list = new int[this -> size];
+    this -> date_list = new string[this -> day_number];
 }
 
 void Portfolio::init(int size, int day_number, double funds, Stock* stock_list) {
@@ -178,6 +195,7 @@ void Portfolio::init(int size, int day_number, double funds, Stock* stock_list) 
     this -> daily_risk = 0;
     this -> trend = 0;
     this -> stock_number = 0;
+    this -> date = "";
     this -> capital_highest_point = 0;
     this -> MDD = 0;
     this -> remain_money = funds;
@@ -192,19 +210,27 @@ void Portfolio::init(int size, int day_number, double funds, Stock* stock_list) 
         delete[] this -> remain_fund;
         delete[] this -> total_money;
         delete[] this -> stock_id_list;
+        delete[] this -> date_list;
     }
     
     this -> data = new int[size];
-    for (int j = 0; j < size; j++) {
-        data[j] = 0;
-    }
     this -> investment_number = new int[size];
     this -> remain_fund = new double[size];
     this -> total_money = new double[day_number];
-    this -> stock_id_list = new int[this -> size];
+    this -> stock_id_list = new int[size];
     this -> constituent_stocks = new Stock[size];
+    this -> date_list = new string[day_number];
+    
+    for (int j = 0; j < size; j++) {
+        data[j] = 0;
+    }
+    
     for(int j = 0; j < size; j++){
         this -> constituent_stocks[j].init(stock_list[j]);
+    }
+    
+    for(int j = 0; j < day_number; j++){
+        this -> date_list[j] = stock_list[0].date_list[j+1];
     }
     
 }
@@ -241,6 +267,10 @@ double Portfolio::getRemainMoney() {
 
 double Portfolio::getNormalY(int day) {
     return this->m * day + this -> funds;
+}
+
+double Portfolio::getProfit(){
+    return this -> total_money[this -> day_number - 1] - this -> funds;
 }
 
 void Portfolio::countQuadraticYLine() {
@@ -282,6 +312,15 @@ void Portfolio::copyP(Portfolio& a) {
     this -> capital_highest_point = a.capital_highest_point;
     this -> PF = a.PF;
     
+    if(this -> data == NULL){
+        this -> data = new int[a.size];
+        this -> investment_number = new int[a.size];
+        this -> remain_fund = new double[a.size];
+        this -> stock_id_list = new int[a.size];
+        this -> total_money = new double[a.day_number];
+        this -> date_list = new string[a.day_number];
+    }
+    
     for (int j = 0; j < a.size; j++) {
         this -> data[j] = a.data[j];
     }
@@ -292,6 +331,7 @@ void Portfolio::copyP(Portfolio& a) {
     }
     for (int j = 0; j < a.day_number; j++) {
         this -> total_money[j] = a.total_money[j];
+        this -> date_list[j] = a.date_list[j];
     }
 }
 
@@ -316,6 +356,6 @@ void Portfolio::print(){
     }
     cout << endl;
     cout << "Trend: " << this -> trend << endl;
-    cout << "Remain money: " << this -> remain_money << endl;
+    cout << "Real award: " << this -> getProfit() << endl;
     cout << endl;
 }
