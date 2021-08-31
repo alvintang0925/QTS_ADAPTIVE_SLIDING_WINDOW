@@ -24,7 +24,7 @@
 using namespace std;
 using namespace filesystem;
 
-#define EXPNUMBER 5
+#define EXPNUMBER 50
 #define ITERNUMBER 10000
 #define PARTICLENUMBER 10
 #define FUNDS 10000000.0
@@ -38,7 +38,7 @@ using namespace filesystem;
 
 double LOWER = 0.2;
 double UPPER = 0.2;
-string FILE_DIR = "0824_IC_NL_GNQ_LN_20%";
+string FILE_DIR = "0824_IC_NL_GNQ_LN_LN+L&P_test";
 string DATA_FILE_NAME = "2011-2020.csv";
 
 class TradePeriod{
@@ -707,7 +707,12 @@ bool isVerifyFinish(TradePeriod &trade_period, double standard_funds){
             result = true;
         }
     }else if(STOPTYPE == 3){
-        
+        double lowerBound = standard_funds * (1 - LOWER);
+        double upperBound = standard_funds * (1 + UPPER);
+        double myFunds = trade_period.verify_result.funds + trade_period.verify_result.getProfit();
+        if( myFunds < lowerBound || myFunds > upperBound || trade_period.verify_result.m < 0){
+            result = true;
+        }
     }
     
     if(MODE == 1){
@@ -833,11 +838,10 @@ int main(int argc, const char * argv[]) {
     
     while(!isLastDay){
         
-
         setWindow(target_date, TRAINRANGE, day_number, trade_period.date_list, trade_period.train_start_index, trade_period.train_end_index);
         
         //______Train______
-        cout << MODE << "_" << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << endl;
+        cout << LOWER << "-" << UPPER << "_" << MODE << "_" << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << endl;
         Stock* stock_list = new Stock[size];
         createStock(stock_list, size, data, trade_period.getTrainDayNumber(), trade_period.train_start_index, trade_period.train_end_index);
         
