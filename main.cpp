@@ -689,29 +689,36 @@ void recordTotalTestResult(vector<double> &total_fs, string *date_list, int day_
     outfile_total_result.close();
 }
 
-bool isVerifyFinish(Portfolio &portfolio, double standard_funds){
+bool isVerifyFinish(TradePeriod &trade_period, double standard_funds){
+    bool result = false;
+    
     if(STOPTYPE == 0){
         double lowerBound = standard_funds * (1 - LOWER);
         double upperBound = standard_funds * (1 + UPPER);
-        
-        double myFunds = portfolio.funds + portfolio.getProfit();
+        double myFunds = trade_period.verify_result.funds + trade_period.verify_result.getProfit();
         if( myFunds < lowerBound || myFunds > upperBound){
-            return true;
-        }else{
-            return false;
+            result = true;
         }
     }else if(STOPTYPE == 1){
-        
+        if(trade_period.verify_result.m < 0){
+            result = true;
+        }
     }else if(STOPTYPE == 2){
-        double slope = 2 * portfolio.a * portfolio.day_number + portfolio.b;
+        double slope = 2 * trade_period.verify_result.a * trade_period.verify_result.day_number + trade_period.verify_result.b;
         if(slope < 0){
-            return true;
-        }else{
-            return false;
+            result = true;
         }
     }else if(STOPTYPE == 3){
         
     }
+    
+    if(MODE == 1){
+        if(trade_period.getTestDayNumber() == TRAINRANGE){
+            result = true;
+        }
+    }
+    
+    return result;
 }
 
 void startTrain(Portfolio &result, Stock *stock_list, int size, int range_day_number, double funds, int particle_number, int exp_number, int iter_number){
@@ -849,11 +856,13 @@ int main(int argc, const char * argv[]) {
         }
         trade_period.verify_start_index = trade_period.train_start_index;
         trade_period.verify_end_index = trade_period.train_end_index;
+        trade_period.test_start_index = trade_period.train_end_index + 1;
         while(true){
             if(MODE == 2){
                 trade_period.verify_start_index++;
             }
             trade_period.verify_end_index++;
+            trade_period.test_end_index = trade_period.verify_end_index;
             
             if(trade_period.verify_end_index == day_number-1){
                 isLastDay = true;
@@ -870,7 +879,7 @@ int main(int argc, const char * argv[]) {
             }
             delete[] stock_list;
             
-            if(isVerifyFinish(trade_period.verify_result, standard_funds) || isLastDay){
+            if(isVerifyFinish(trade_period, standard_funds) || isLastDay){
                 outputFile(trade_period.verify_result, getOutputFilePath(trade_period.getVerifyStartDate(), trade_period.getVerifyEndDate(), FILE_DIR, "verify"));
                 break;
             }
@@ -880,8 +889,6 @@ int main(int argc, const char * argv[]) {
         //______Test______
         
         cout << "______Test______" << endl << endl;
-        trade_period.test_start_index = trade_period.train_end_index + 1;
-        trade_period.test_end_index = trade_period.verify_end_index;
         stock_list = new Stock[size];
         createStock(stock_list, size, data, trade_period.getTestDayNumber(), trade_period.test_start_index, trade_period.test_end_index);
         result.init(size, trade_period.getTestDayNumber(), test_funds, stock_list);
