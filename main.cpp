@@ -603,16 +603,12 @@ void recordCPUTime(double START, double END){
     outfile_time << "total time: " << total_time << " sec" << endl;
 }
 
-void recordTotalTestResult(vector<double> &total_fs, string *date_list, int day_number){
+void recordTotalTestResult(vector<double> &total_fs, vector<string> &total_date, ofstream &outfile_LNLP){
     Portfolio portfolio(1, total_fs.size(), FUNDS);
     portfolio.stock_number = 1;
-    int start_index, end_index;
-    setWindow(STARTDATE, total_fs.size(), day_number, date_list, start_index, end_index);
-    start_index += TRAINRANGE;
-    end_index += TRAINRANGE;
     for(int j = 0; j < total_fs.size(); j++){
         portfolio.total_money[j] = total_fs[j];
-        portfolio.date_list[j] = date_list[j + start_index];
+        portfolio.date_list[j] = total_date[j];
     }
     countTrend(&portfolio, 1, FUNDS);
     ofstream outfile_total_result;
@@ -620,7 +616,7 @@ void recordTotalTestResult(vector<double> &total_fs, string *date_list, int day_
     outfile_total_result.open(file_name, ios::out);
     outfile_total_result << setprecision(15);
     
-    outfile_total_result << "Test Date," << date_list[start_index] << "-" << date_list[end_index] << endl;
+    outfile_total_result << "Test Date," << total_date[0] << "-" << total_date[total_date.size() - 1] << endl;
     outfile_total_result << "Total days," << portfolio.day_number << endl;
     outfile_total_result << "Iteration," << ITERNUMBER << endl;
     outfile_total_result << "Element number," << PARTICLENUMBER << endl;
@@ -687,6 +683,8 @@ void recordTotalTestResult(vector<double> &total_fs, string *date_list, int day_
         outfile_total_result << portfolio.date_list[j] << "," << portfolio.total_money[j] << endl;
     }
     outfile_total_result.close();
+    
+    outfile_LNLP << "Real Reward," << portfolio.getProfit() << "Trend Ratio," <<portfolio.trend << "Risk," << portfolio.daily_risk;
 }
 
 bool isVerifyFinish(TradePeriod &trade_period, double standard_funds){
@@ -789,7 +787,19 @@ void startTest(Portfolio &result, Portfolio &train_result, Stock *stock_list, in
 }
 
 int main(int argc, const char * argv[]) {
-
+    
+    ofstream outfile_LNLP;
+    string total_data_name = "total_LN+L&P_30-30.csv";
+    outfile_LNLP.open(total_data_name, ios::out);
+    outfile_LNLP << setprecision(15);
+    
+    for(int lo = 30; lo > 0; lo--){
+        for(int up = 30; up > 0; up--){
+            outfile_LNLP << "Loss," << lo << "Profit," << up;
+            LOWER = double(lo) / 100;
+            UPPER = double(up) / 100;
+            string temp_file_dir = FILE_DIR;
+            FILE_DIR += "_" + to_string(lo) + "%" + to_string(up) + "%";
     double START, END;
     START = clock();
     srand(114);
@@ -805,6 +815,7 @@ int main(int argc, const char * argv[]) {
     double neg_award = 0;
     bool isLastDay = false;
     vector<double> total_fs;
+    vector<string> total_date;
     string** data;
     vector<vector<string>> data_vector;
     Portfolio result;
@@ -897,6 +908,7 @@ int main(int argc, const char * argv[]) {
         
         for(int j = 0; j < trade_period.getTestDayNumber(); j++){
             total_fs.push_back(trade_period.test_result.total_money[j]);
+            total_date.push_back(trade_period.test_result.date_list[j]);
         }
         delete[] stock_list;
         test_funds = trade_period.test_result.funds + trade_period.test_result.getProfit();
@@ -929,9 +941,11 @@ int main(int argc, const char * argv[]) {
         target_date = trade_period.getDate(trade_period.test_end_index - TRAINRANGE + 1);
     }
     
-    recordTotalTestResult(total_fs, trade_period.date_list, total_fs.size());
+    recordTotalTestResult(total_fs, total_date, outfile_LNLP);
     END = clock();
     recordCPUTime(START, END);
+    
+            
     
     for(int j = 0; j < data_vector.size(); j++){
         data_vector[j].clear();
@@ -940,6 +954,11 @@ int main(int argc, const char * argv[]) {
     
     data_vector.clear();
     delete[] data;
+        total_fs.clear();
+        total_date.clear();
+            FILE_DIR = temp_file_dir;
+        }
+    }
     
     return 0;
 }
