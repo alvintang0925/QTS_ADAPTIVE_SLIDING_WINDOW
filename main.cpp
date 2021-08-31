@@ -759,7 +759,7 @@ void startVerify(Portfolio &result, Portfolio &train_result, Stock *stock_list, 
     portfolio[0].init(size, range_day_number, funds, stock_list);
     genTestPortfolio(portfolio[0], stock_list, train_result);
     
-    if(MODE == 1){
+    if(MODE == 2){
         capitalLevel(portfolio, 1, train_result);
     }else{
         capitalLevel(portfolio, 1);
