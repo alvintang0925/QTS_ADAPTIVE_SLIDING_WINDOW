@@ -19,10 +19,16 @@ public:
 Stock::~Stock(){
     delete[] price_list;
     delete[] date_list;
+    this -> price_list = NULL;
+    this -> date_list = NULL;
 }
 
 void Stock::init(int day_number) {
     this -> day_number = day_number;
+    if(this -> price_list != NULL){
+        delete[] this -> price_list;
+        delete[] this -> date_list;
+    }
     this -> price_list = new double[day_number];
     this -> date_list = new string[day_number];
 }
@@ -81,11 +87,44 @@ public:
     void print();
     Portfolio();
     Portfolio(int, int, double, Stock*);
+    Portfolio(int, int, double);
     ~Portfolio();
 };
 
 Portfolio::Portfolio(){
 };
+
+Portfolio::Portfolio(int size, int day_number, double funds){
+    this -> gen = 0;
+    this -> exp = 0;
+    this -> answer_counter = 0;
+    this -> stock_number = 0;
+    this -> m = 0;
+    this -> a = -1;
+    this -> b = -1;
+    this -> daily_risk = 0;
+    this -> trend = 0;
+    this -> stock_number = 0;
+    this -> capital_highest_point = 0;
+    this -> MDD = 0;
+    this -> remain_money = funds;
+    this -> funds = funds;
+    this -> size = size;
+    this -> day_number = day_number;
+    this -> date = "";
+    
+    
+    this -> data = new int[size];
+    this -> investment_number = new int[size];
+    this -> remain_fund = new double[size];
+    this -> total_money = new double[day_number];
+    this -> stock_id_list = new int[this -> size];
+    this -> date_list = new string[day_number];
+    
+    for (int j = 0; j < size; j++) {
+        data[j] = 0;
+    }
+}
 
 Portfolio::Portfolio(int size, int day_number, double funds, Stock *stock_list) {
     this -> gen = 0;
@@ -170,7 +209,6 @@ void Portfolio::init() {
         delete[] this -> remain_fund;
         delete[] this -> total_money;
         delete[] this -> stock_id_list;
-        delete[] this -> date_list;
     }
     this -> data = new int[this -> size];
     for (int j = 0; j < size; j++) {
@@ -180,7 +218,6 @@ void Portfolio::init() {
     this -> remain_fund = new double[this -> size];
     this -> total_money = new double[this -> day_number];
     this -> stock_id_list = new int[this -> size];
-    this -> date_list = new string[this -> day_number];
 }
 
 void Portfolio::init(int size, int day_number, double funds, Stock* stock_list) {
@@ -306,19 +343,40 @@ void Portfolio::copyP(Portfolio& a) {
     this -> stock_number = a.stock_number;
     this -> remain_money = a.remain_money;
     this -> funds = a.funds;
-    this -> size = a.size;
-    this -> day_number = a.day_number;
     this -> MDD = a.MDD;
     this -> capital_highest_point = a.capital_highest_point;
     this -> PF = a.PF;
     
-    if(this -> data == NULL){
-        this -> data = new int[a.size];
-        this -> investment_number = new int[a.size];
-        this -> remain_fund = new double[a.size];
-        this -> stock_id_list = new int[a.size];
-        this -> total_money = new double[a.day_number];
-        this -> date_list = new string[a.day_number];
+    if(this -> size != a.size || this -> day_number != a.day_number){
+        this -> size = a.size;
+        this -> day_number = a.day_number;
+        if(this -> data != NULL){
+            delete[] this -> data;
+            delete[] this -> investment_number;
+            delete[] this -> constituent_stocks;
+            delete[] this -> remain_fund;
+            delete[] this -> total_money;
+            delete[] this -> stock_id_list;
+            delete[] this -> date_list;
+        }
+        
+        this -> data = new int[size];
+        this -> investment_number = new int[size];
+        this -> remain_fund = new double[size];
+        this -> total_money = new double[day_number];
+        this -> stock_id_list = new int[size];
+        this -> constituent_stocks = new Stock[size];
+        this -> date_list = new string[day_number];
+        
+        for(int j = 0; j < size; j++){
+            this -> constituent_stocks[j].init(a.constituent_stocks[j]);
+        }
+    }
+    
+    if(this -> constituent_stocks[0].date_list[0] != a.constituent_stocks[0].date_list[0]){
+        for(int j = 0; j < size; j++){
+            this -> constituent_stocks[j].init(a.constituent_stocks[j]);
+        }
     }
     
     for (int j = 0; j < a.size; j++) {
