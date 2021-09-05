@@ -32,13 +32,13 @@ using namespace filesystem;
 #define QTSTYPE 2 //QTS 0, GQTS 1, GNQTS 2
 #define TRENDLINETYPE 0 //linear 0, quadratic 1
 #define MODE 0 //IC_NL 0, IC_LTT 1, DC_NL 2
-#define STOPTYPE 0 //loss & profit 0, linear 1, quadratic 2, linear + L&P 3
+#define STOPTYPE 3 //loss & profit 0, linear 1, quadratic 2, linear + L&P 3, loss & move_profit 4
 #define STARTDATE "20100930"
 #define TRAINRANGE 65
 
-double LOWER = 0.2;
-double UPPER = 0.2;
-string FILE_DIR = "0824_IC_NL_GNQ_LN_LN+L&P_test";
+double LOWER = 0.1;
+double UPPER = 0.1;
+string FILE_DIR = "0906_IC_NL_GNQ_LN_L&MP";
 string DATA_FILE_NAME = "2011-2020.csv";
 
 class TradePeriod{
@@ -684,10 +684,10 @@ void recordTotalTestResult(vector<double> &total_fs, vector<string> &total_date,
     }
     outfile_total_result.close();
     
-    outfile_LNLP << "Real Reward," << portfolio.getProfit() << "Trend Ratio," <<portfolio.trend << "Risk," << portfolio.daily_risk;
+    outfile_LNLP << "Real Reward," << portfolio.getProfit() << ",Trend Ratio," <<portfolio.trend << ",Risk," << portfolio.daily_risk << endl;
 }
 
-bool isVerifyFinish(TradePeriod &trade_period, double standard_funds){
+bool isVerifyFinish(TradePeriod &trade_period, double standard_funds, double highest_fs){
     bool result = false;
     
     if(STOPTYPE == 0){
@@ -711,6 +711,13 @@ bool isVerifyFinish(TradePeriod &trade_period, double standard_funds){
         double upperBound = standard_funds * (1 + UPPER);
         double myFunds = trade_period.verify_result.funds + trade_period.verify_result.getProfit();
         if( myFunds < lowerBound || myFunds > upperBound || trade_period.verify_result.m < 0){
+            result = true;
+        }
+    }else if(STOPTYPE == 4){
+        double lowerBound = standard_funds * (1 - LOWER);
+        double upperBound = highest_fs * (1 - UPPER);
+        double myFunds = trade_period.verify_result.funds + trade_period.verify_result.getProfit();
+        if( myFunds < lowerBound || myFunds < upperBound){
             result = true;
         }
     }
@@ -793,18 +800,6 @@ void startTest(Portfolio &result, Portfolio &train_result, Stock *stock_list, in
 
 int main(int argc, const char * argv[]) {
     
-    ofstream outfile_LNLP;
-    string total_data_name = "total_LN+L&P_30-30.csv";
-    outfile_LNLP.open(total_data_name, ios::out);
-    outfile_LNLP << setprecision(15);
-    
-    for(int lo = 30; lo > 0; lo--){
-        for(int up = 30; up > 0; up--){
-            outfile_LNLP << "Loss," << lo << "Profit," << up;
-            LOWER = double(lo) / 100;
-            UPPER = double(up) / 100;
-            string temp_file_dir = FILE_DIR;
-            FILE_DIR += "_" + to_string(lo) + "%" + to_string(up) + "%";
     double START, END;
     START = clock();
     srand(114);
@@ -862,8 +857,10 @@ int main(int argc, const char * argv[]) {
         
         double standard_funds;
         double verify_funds;
+        double highest_fs;
         
         standard_funds = result.funds + result.getProfit();
+        highest_fs = standard_funds;
         if(MODE == 2){
             verify_funds = result.total_money[0];
         }else{
@@ -872,6 +869,7 @@ int main(int argc, const char * argv[]) {
         trade_period.verify_start_index = trade_period.train_start_index;
         trade_period.verify_end_index = trade_period.train_end_index;
         trade_period.test_start_index = trade_period.train_end_index + 1;
+        
         while(true){
             if(MODE == 2){
                 trade_period.verify_start_index++;
@@ -889,12 +887,17 @@ int main(int argc, const char * argv[]) {
             result.init(size, trade_period.getVerifyDayNumber(), verify_funds, stock_list);
             startVerify(result, trade_period.train_result, stock_list, size, trade_period.getVerifyDayNumber(), verify_funds);
             trade_period.verify_result.copyP(result);
+            if((result.funds + result.getProfit()) > highest_fs){
+                highest_fs = result.funds + result.getProfit();
+            }
+            
+            
             if(MODE == 2){
                 verify_funds = result.total_money[0];
             }
             delete[] stock_list;
             
-            if(isVerifyFinish(trade_period, standard_funds) || isLastDay){
+            if(isVerifyFinish(trade_period, standard_funds, highest_fs) || isLastDay){
                 outputFile(trade_period.verify_result, getOutputFilePath(trade_period.getVerifyStartDate(), trade_period.getVerifyEndDate(), FILE_DIR, "verify"));
                 break;
             }
@@ -930,7 +933,7 @@ int main(int argc, const char * argv[]) {
         }
         
         outfile_total_data << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << ",";
-        outfile_total_data << trade_period.getTestStartDate() << " - " << trade_period.getTestStartDate() << ",";
+        outfile_total_data << trade_period.getTestStartDate() << " - " << trade_period.getTestEndDate() << ",";
         outfile_total_data << trade_period.getTestDayNumber() << ",";
         outfile_total_data << trade_period.test_result.MDD << ",";
         outfile_total_data << trade_period.test_result.getProfit() << ",";
@@ -945,7 +948,6 @@ int main(int argc, const char * argv[]) {
         target_date = trade_period.getDate(trade_period.test_end_index - TRAINRANGE + 1);
     }
     
-    recordTotalTestResult(total_fs, total_date, outfile_LNLP);
     END = clock();
     recordCPUTime(START, END);
     
@@ -958,11 +960,6 @@ int main(int argc, const char * argv[]) {
     
     data_vector.clear();
     delete[] data;
-        total_fs.clear();
-        total_date.clear();
-            FILE_DIR = temp_file_dir;
-        }
-    }
     
     return 0;
 }
