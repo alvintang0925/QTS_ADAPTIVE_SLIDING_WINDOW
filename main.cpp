@@ -185,7 +185,6 @@ bool readSpeData(string filename, string title, vector<string>& myTrainData_vect
     while (getline(inFile, line)) {
         istringstream delime(line);
         string s;
-
         while (getline(delime, s, ',')) {
             if (sw) {
                 if (s != "\r") {
