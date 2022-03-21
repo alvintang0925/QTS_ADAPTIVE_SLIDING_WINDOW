@@ -58,7 +58,9 @@ public:
     double b = -1;
     double daily_risk = 0;
     double trend = 0;
-    double mood_ratio = 0;
+    double emotion_index = 0;
+    double ei_m = 0;
+    double ei_daily_risk = 0;
     double remain_money = 0;
     double funds = 0;
     double capital_highest_point = 0;
@@ -144,7 +146,9 @@ void Portfolio::constr() {
     this->capital_highest_point = 0;
     this->MDD = 0;
     this->date = "";
-    this->mood_ratio = 0;
+    this->emotion_index = 0;
+    this->ei_m = 0;
+    this->ei_daily_risk = 0;
 }
 
 void Portfolio::constr(int size, int day_number, double funds) {
@@ -316,7 +320,9 @@ void Portfolio::copyP(Portfolio& a) {
     this -> capital_highest_point = a.capital_highest_point;
     this -> PF = a.PF;
     this -> DPF = a.DPF;
-    this -> mood_ratio = a.mood_ratio;
+    this -> emotion_index = a.emotion_index;
+    this->ei_m = a.ei_m;
+    this->ei_daily_risk = a.ei_daily_risk;
     
     if(this -> size != a.size || this -> day_number != a.day_number){
         this -> size = a.size;

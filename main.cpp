@@ -31,16 +31,16 @@ using namespace filesystem;
 #define DELTA 0.0004
 #define QTSTYPE 2 //QTS 0, GQTS 1, GNQTS 2
 #define TRENDLINETYPE 0 //linear 0, quadratic 1
-#define MODE 0 //IC_NL 0, IC_LTT 1, DC_NL 2
-#define STOPTYPE 5 //linear 0, quadratic 1, linear + L&P 2, loss & profit 3, loss & move_profit 4, loss & limited_move_profit 5
-#define STARTDATE "20100930" //20100930 20101201
-int TRAINRANGE = 65;
+#define MODE 1 //IC_NL 0, IC_LTT 1, DC_NL 2
+#define STOPTYPE 1 //linear 0, quadratic 1, linear + L&P 2, loss & profit 3, loss & move_profit 4, loss & limited_move_profit 5
+#define STARTDATE "20120103"
+int TRAINRANGE =125; //22, 65, 125, 250
 
 double LOWER = 0.02;
-double UPPER = 0.2;
+double UPPER = 0.02;
 double constant_percent = 0.02;
-string FILE_DIR = "0106_IC_NL_GNQ_LN_L&LMP";
-string DATA_FILE_NAME = "2011-2020.csv";
+string FILE_DIR = "0307_LR_IC_LTT_QR_H_DT";
+string DATA_FILE_NAME = "2010-2021.csv";
 
 class TradePeriod {
 public:
@@ -185,6 +185,7 @@ bool readSpeData(string filename, string title, vector<string>& myTrainData_vect
     while (getline(inFile, line)) {
         istringstream delime(line);
         string s;
+
         while (getline(delime, s, ',')) {
             if (sw) {
                 if (s != "\r") {
@@ -254,8 +255,8 @@ void copyData(string* data_copy, string** data, int day_number) {
 void setWindow(string target_date, int range, int day_number, string* date_list, int& start_index, int& end_index) {
     for (int j = 0; j < day_number; j++) {
         if (target_date == date_list[j]) {
-            start_index = j;
-            end_index = j + range - 1;
+            start_index = j - range;
+            end_index = j - 1;
             break;
         }
     }
@@ -567,7 +568,9 @@ void outputFile(Portfolio& portfolio, string file_name) {
         }
     }
 
-    outfile << "Mood ratio," << portfolio.mood_ratio << endl << endl;
+    outfile << "Emotion index," << portfolio.emotion_index << endl;
+    outfile << "EI M," << portfolio.ei_m << endl;
+    outfile << "EI daily risk," << portfolio.ei_daily_risk << endl << endl;
 
     outfile << "Best generation," << portfolio.gen << endl;
     outfile << "Best experiment," << portfolio.exp << endl;
@@ -700,22 +703,29 @@ void recordTotalTestResult(vector<double>& total_fs, vector<string>& total_date)
         }
     }
 
-    double mr_m = ((portfolio.funds + portfolio.getProfit()) - portfolio.total_money[0]) / (portfolio.day_number - 1);
-    double b = portfolio.total_money[0];
+    double mr_m = ((portfolio.funds + portfolio.getProfit()) - portfolio.funds) / (portfolio.day_number);
+    double b = portfolio.funds;
     double sum = 0;
-    for (int j = 0; j < portfolio.day_number; j++) {
+    for (int j = 0; j < portfolio.day_number + 1; j++) {
         double Y;
-        Y = (j + 1) * mr_m + b;
-        sum += (portfolio.total_money[j] - Y) * (portfolio.total_money[j] - Y);
+        Y = j * mr_m + b;
+        if (j == 0) {
+            sum += (portfolio.funds - Y) * (portfolio.funds - Y);
+        }
+        else {
+            sum += (portfolio.total_money[j - 1] - Y) * (portfolio.total_money[j - 1] - Y);
+        }
     }
-    double mr_daily_risk = sqrt(sum / (portfolio.day_number));
-    portfolio.mood_ratio = mr_m / mr_daily_risk;
-    outfile_total_result << "Mood ratio," << portfolio.mood_ratio << endl;
+    double mr_daily_risk = sqrt(sum / (portfolio.day_number + 1));
+    portfolio.emotion_index = mr_m / mr_daily_risk;
+    outfile_total_result << "Emotion index," << portfolio.emotion_index << endl;
 
 
     double DD = 0;
     double MDD = 0;
     double highest_point = 0;
+    double high_point = 0;
+    double low_point = 0;
     for (int j = 0; j < portfolio.day_number; j++) {
         if (portfolio.total_money[j] > highest_point) {
             highest_point = portfolio.total_money[j];
@@ -723,10 +733,14 @@ void recordTotalTestResult(vector<double>& total_fs, vector<string>& total_date)
         DD = (highest_point - portfolio.total_money[j]) / highest_point;
         if (DD > portfolio.MDD) {
             portfolio.MDD = DD;
+            high_point = highest_point;
+            low_point = portfolio.total_money[j];
         }
     }
 
-    outfile_total_result << "MDD," << portfolio.MDD << endl;
+    outfile_total_result << "MDD," << portfolio.MDD <<endl;
+    outfile_total_result << "MDD HP," << high_point << endl;
+    outfile_total_result << "MDD LP," << low_point << endl;
 
     double last_money = portfolio.funds;
     double pos_trend = 0;
@@ -762,7 +776,7 @@ void recordTotalTestResult(vector<double>& total_fs, vector<string>& total_date)
 
 int isVerifyFinish(TradePeriod& trade_period, double standard_funds, double highest_fs) {
     int result = 0;
-#define STOPTYPE 4 //linear 0, quadratic 1, linear + L&P 2, loss & profit 3, loss & move_profit 4, loss & limited_move_profit 5
+
     if (STOPTYPE == 0) {
         if (trade_period.verify_result.m < 0) {
             result = 3;
@@ -834,6 +848,19 @@ int isVerifyFinish(TradePeriod& trade_period, double standard_funds, double high
             if (myFunds < upperBound) {
                 result = 2;
             }
+        }
+    }
+    else if (STOPTYPE == 6) {
+        double lowerBound = standard_funds * (1 - LOWER);
+        double upperBound = (highest_fs - standard_funds) * (1 - UPPER) + standard_funds;
+        upperBound = (highest_fs - trade_period.verify_result.funds) * (1 - UPPER) + trade_period.verify_result.funds;
+
+        double myFunds = trade_period.verify_result.funds + trade_period.verify_result.getProfit();
+        if (myFunds < lowerBound) {
+            result = 1;
+        }
+        else if (myFunds < upperBound) {
+            result = 2;
         }
     }
 
@@ -916,7 +943,7 @@ void startTest(Portfolio& result, Portfolio& train_result, Stock* stock_list, in
 
 int main(int argc, const char* argv[]) {
 
-    for (int lo = 1; lo < 21; lo++) {
+    for (int lo = 11; lo < 21; lo++) {
         for (int pf = 1; pf < 21; pf++) {
             if (lo == 0) {
                 lo = 1;
@@ -952,7 +979,7 @@ int main(int argc, const char* argv[]) {
             int last_test_day = 100;
 
             createDir(FILE_DIR);
-            readData("2011-2020.csv", data_vector, size, day_number);
+            readData(DATA_FILE_NAME, data_vector, size, day_number);
             data = vectorToArray(data_vector);
             TradePeriod trade_period;
             trade_period.init(day_number, data);
@@ -970,7 +997,7 @@ int main(int argc, const char* argv[]) {
                 outfile_total_data << "LN_trend,";
             }
 
-            outfile_total_data << "Mood ratio,";
+            outfile_total_data << "Emotion index,";
             if (STOPTYPE > 1) {
                 outfile_total_data << "Loss,";
                 outfile_total_data << "Profit,";
@@ -983,7 +1010,7 @@ int main(int argc, const char* argv[]) {
 
                 setWindow(target_date, TRAINRANGE, day_number, trade_period.date_list, trade_period.train_start_index, trade_period.train_end_index);
 
-                cout << lo << "%-" << pf << "%" << endl;
+                cout << (LOWER * 100) << "%-" << (UPPER * 100) << "%" << endl;
                 //______Train______
                 cout << MODE << "_" << trade_period.getTrainStartDate() << " - " << trade_period.getTrainEndDate() << endl;
                 Stock* stock_list = new Stock[size];
@@ -998,7 +1025,7 @@ int main(int argc, const char* argv[]) {
                     outputFile(trade_period.train_result, getOutputFilePath(trade_period.getTrainStartDate(), trade_period.getTrainEndDate(), FILE_DIR, "train"));
                 }
                 else {
-                    target_date = trade_period.getDate(trade_period.train_start_index + 1);
+                    target_date = trade_period.getDate(trade_period.train_end_index + 2);
                     total_fs.push_back(test_funds);
                     total_date.push_back(trade_period.getDate(trade_period.train_end_index + 1));
                     continue;
@@ -1012,52 +1039,24 @@ int main(int argc, const char* argv[]) {
                 double diff = 0;
                 bool isNewHigh = false;
                 int wave_counter = 0;
-                /*
+                
                 for (int j = 0; j < trade_period.train_result.day_number; j++) {
-                    
-                    if (trade_period.train_result.total_money[j] > trade_period.train_result.funds && trade_period.train_result.total_money[j] > highest_point) {
+
+                    if (trade_period.train_result.total_money[j] >= last_point) {
+                        if (low_point != DBL_MAX) {
+                            max_diff += (highest_point - low_point) / (highest_point);
+                            wave_counter++;
+                        }
                         highest_point = trade_period.train_result.total_money[j];
-                        low_point = DBL_MAX;
-                        if (highest_point > (trade_period.train_result.funds * (1 + constant_percent))) {
-                            isNewHigh = true;
-                        }
                     }
-
-                    if (isNewHigh) {
-                        if (trade_period.train_result.total_money[j] < low_point) {
-                            low_point = trade_period.train_result.total_money[j];
-                            diff = 1 - ((low_point- trade_period.train_result.funds) / (highest_point - trade_period.train_result.funds));
-                            if (diff > max_diff) {
-                                max_diff = diff;
-                            }
-                        }
-                        
+                    else {
+                        low_point = trade_period.train_result.total_money[j];
                     }
-                }
-
-                */
-                for (int j = 0; j < trade_period.train_result.day_number; j++) {
-                    //if (trade_period.train_result.total_money[j] > (trade_period.train_result.funds * (1 + constant_percent))) {
-                      //  isNewHigh = true;
-                    //}
-                    //if (isNewHigh) {
-                        if (trade_period.train_result.total_money[j] >= last_point) {
-                            if (low_point != DBL_MAX) {
-                                max_diff += (highest_point - low_point) / (highest_point);
-                                wave_counter++;
-                            }
-                            highest_point = trade_period.train_result.total_money[j];
-                        }
-                        else {
-                            low_point = trade_period.train_result.total_money[j];
-                        }
-                    //}
 
                     last_point = trade_period.train_result.total_money[j];
-                    
+
                 }
                 max_diff /= wave_counter;
-                //UPPER = max_diff;
 
                 //______Verify______
                 cout << "______Verify______" << endl << endl;
@@ -1173,16 +1172,23 @@ int main(int argc, const char* argv[]) {
                 outfile_total_data << trade_period.test_result.PF << ",";
                 outfile_total_data << trade_period.test_result.DPF << ",";
 
-                double mr_m = ((trade_period.test_result.funds + trade_period.test_result.getProfit()) - trade_period.test_result.total_money[0]) / (trade_period.test_result.day_number - 1);
-                double b = trade_period.test_result.total_money[0];
+                double mr_m = ((trade_period.test_result.funds + trade_period.test_result.getProfit()) - trade_period.test_result.funds) / (trade_period.test_result.day_number);
+                double b = trade_period.test_result.funds;
                 double sum = 0;
-                for (int j = 0; j < trade_period.test_result.day_number; j++) {
+                for (int j = 0; j < trade_period.test_result.day_number + 1; j++) {
                     double Y;
-                    Y = (j + 1) * mr_m + b;
-                    sum += (trade_period.test_result.total_money[j] - Y) * (trade_period.test_result.total_money[j] - Y);
+                    Y = j * mr_m + b;
+                    if (j == 0) {
+                        sum += (trade_period.test_result.funds - Y) * (trade_period.test_result.funds - Y);
+                    }
+                    else {
+                        sum += (trade_period.test_result.total_money[j-1] - Y) * (trade_period.test_result.total_money[j-1] - Y);
+                    }
                 }
-                double mr_daily_risk = sqrt(sum / (trade_period.test_result.day_number));
-                trade_period.test_result.mood_ratio = mr_m / mr_daily_risk;
+                double mr_daily_risk = sqrt(sum / (trade_period.test_result.day_number + 1));
+                trade_period.test_result.emotion_index = mr_m / mr_daily_risk;
+                trade_period.test_result.ei_m = mr_m;
+                trade_period.test_result.ei_daily_risk = mr_daily_risk;
 
                 if (TRENDLINETYPE == 0) {
                     outfile_total_data << trade_period.test_result.trend << ",";
@@ -1230,7 +1236,7 @@ int main(int argc, const char* argv[]) {
                     outfile_total_data << trade_period.test_result.trend << ",";
                 }
 
-                outfile_total_data << trade_period.test_result.mood_ratio << ",";
+                outfile_total_data << trade_period.test_result.emotion_index << ",";
                 if (STOPTYPE > 1) {
                     outfile_total_data << LOWER << ",";
                     outfile_total_data << UPPER << ",";
@@ -1253,18 +1259,22 @@ int main(int argc, const char* argv[]) {
 
                 /*
                 if (trade_period.getTestDayNumber() != 1 && last_test_day != 1) {
-                    TRAINRANGE = 65;
+                    TRAINRANGE = 125;
                 }
-                else if (trade_period.getTestDayNumber() == 1 && last_test_day == 1)
+                else if (trade_period.getTestDayNumber() == 1)
                 {
-                    TRAINRANGE = 10;
+                    TRAINRANGE = 20;
                 }
                 */
 
-                last_test_day = trade_period.getTestDayNumber();
-                target_date = trade_period.getDate(trade_period.test_end_index - TRAINRANGE + 1);
-            }
 
+
+                last_test_day = trade_period.getTestDayNumber();
+                if (!isLastDay) {
+                    target_date = trade_period.getDate(trade_period.test_end_index + 1);
+
+                }
+            }
             recordTotalTestResult(total_fs, total_date);
             END = clock();
             recordCPUTime(START, END);
